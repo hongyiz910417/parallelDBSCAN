@@ -4,7 +4,6 @@
 #include <set>
 #include <vector>
 #include <math.h>
-#include <__debug>
 #include "dbscaner.h"
 
 #define ALLOC_NUM 1000
@@ -19,32 +18,19 @@ typedef struct point_struct
 	int isClustered;
 } point;
 
-/*typedef struct node_struct{
-	point* val;
-	node* next;
-} node;
-
-typedef struct cluster_struct{
-	int count;
-	cluster* next_cluster;
-	node* next_node;
-} cluster;
-
-typedef struct cluster_header_struct{
-	int count;
-	cluster* next_cluster;
-} cluster_header;*/
-
 static vector<set<point*>*> clusters;
 static set<point*>* noiseCluster = new set<point*>;
 
 static point* points;
 static int p_count;
+
+static point ppp;
+
 void get_point(char* line, point* pnt){
 	//get x
 	pnt->x = atof(line);
 	//get start point of y
-	while(*line != ',')
+	while(*line != ' ')
 		line++;
 	line++;
 	//get y
@@ -54,11 +40,19 @@ void get_point(char* line, point* pnt){
 	pnt->isClustered = 0;
 }
 
+bool isEqual(point* p1, point* p2, double diff){
+	if((fabs(p1->x - p2->x) < diff) &&(fabs(p1->y - p2->y) < diff)){
+		return true;
+	}
+	else 
+		return false;
+}
+
 void load_data(char* path){
 	FILE* fp;
 	char line_buf[256];
 	fp = fopen(path, "r");
-	if(fp == NULL){
+	if(fp <= 0){
 		printf("invalid input file\n");
 		return;
 	}
@@ -75,43 +69,20 @@ void load_data(char* path){
     		free(tmp);
     	}
   	}
+  	fclose(fp);
 }
 
 void print_point(point* p){
-	printf("%f,%f,%d,%d\n", p->x, p->y, p->visited
-				, p->isClustered);
+	printf("[%f,%f], %d\n", p->x, p->y, p->isClustered);
 }
 
 void print_data(){
 	int i = 0;
+	printf("printing\n");
 	for(; i < p_count; i++){
 		print_point(points + i);
 	}
 }
-
-/*void free_cluster(cluster* list){
-	node* p = list->next_node;
-	while(p != NULL){
-		node* tmp = p;
-		p = p->next;
-		free(tmp);
-	}
-	free(list);
-}
-
-void add_node(cluster* list, point* p){
-	node* n = malloc(sizeof(node));
-	n->val = p;
-	list->count++;
-	n->next = list->next_node;
-	list->next_node = n;
-}
-
-void add_cluster(cluster_header* list, cluster* c){
-	list->count++;
-	c->next_cluster = list->next_cluster;
-	list->next_cluster = c;
-}*/
 
 void print_set(set<point*>* s){
 	set<point*>::iterator it;
@@ -120,19 +91,34 @@ void print_set(set<point*>* s){
 	}
 }
 
+void print_vec(vector<point*>* vec){
+	int size = vec->size();
+	int i = 0;
+	for(; i < size; i++){
+		print_point((*vec)[i]);
+	}
+}
+
 int isNeighbor(point* pnt1, point* pnt2, double eps, double diff){
 	double distance = (pnt1->x - pnt2->x) * (pnt1->x - pnt2->x)
 					 + (pnt1->y - pnt2->y) * (pnt1->y - pnt2->y);
-	//printf("dis: %f\n", fabs(distance - eps * eps));
 	return distance < eps * eps || pnt1 == pnt2;
 }
 
 set<point*>* regionQuery(point* pnt, double eps, double diff){
 	set<point*>* v = new set<point*>;
+	ppp.x = 30.47791;
+	ppp.y = 114.41163;
 	int i;
 	for(i = 0; i < p_count; i++){
+		if(isEqual(&ppp, points + i, diff)){
+			print_point(pnt);
+		}
 		if(isNeighbor(pnt, points + i, eps, diff)){
 			v->insert(points + i);
+			if(isEqual(&ppp, points + i, diff)){
+				printf("add\n");
+			}
 		}
 	}
 	return v;
@@ -150,7 +136,13 @@ void join(set<point*>* s1, set<point*>* s2, vector<point*>* v2){
 
 void expandCluster(point* pnt, set<point*>* neighborPts, set<point*>* c
 	, double eps, int minPts, double diff){
+	printf("start expanding\n");
+	ppp.x = 30.47791;
+	ppp.y = 114.41163;
 	c->insert(pnt);
+	if(isEqual(&ppp, pnt, diff)){
+		printf("changing 150\n");
+	}
 	pnt->isClustered = 1;
 	vector<point*>* v = new vector<point*>(neighborPts->begin(), neighborPts->end());
 	int i = 0;
@@ -169,36 +161,26 @@ void expandCluster(point* pnt, set<point*>* neighborPts, set<point*>* c
 			p->isClustered = 1;
 		}
 	}
+	printf("expanding done\n");
 }
 
 void cluster(char* outpath, double eps, int minPts, double diff){
-	/*cluster_header* clusters = malloc(sizeof(cluster_header));
-	clusters->count = 0;
-	clusters->next_cluster = NULL;
-	//init noise points cluster
-	cluster* noiseCluster = malloc(sizeof(cluster));
-	noiseCluster->count = 0;
-	noiseCluster->next_cluster = NULL;
-	noiseCluster->next_node = NULL;*/
-
 	int i;
 	for(i = 0; i < p_count; i++){
 		if(points[i].visited)
 			continue;
 		points[i].visited = 1;
 		set<point*>* neighborPts = regionQuery(points + i, eps, diff);
-		printf("n:\n");
-		print_set(neighborPts);
+		//printf("n: %d\n", neighborPts->size());
 		//mark as noise
 		if(neighborPts->size() < minPts){
 			noiseCluster->insert(points + i);
-			points[i].isClustered = 1;
+			//points[i].isClustered = 1;
 		}
 		else{
 			set<point*>* c = new set<point*>;
 			expandCluster(points + i, neighborPts, c, eps
 							, minPts, diff);
-			//add_cluster(clusters, c);
 			clusters.push_back(c);
 		}
 		delete neighborPts;
@@ -209,10 +191,13 @@ void print_clusters(){
 	int i = 0;
 	for(; i < clusters.size(); i++){
 		set<point*>* c = clusters[i];
-		printf("cluster:\n");
+		printf("cluster: %d\n", c->size());
 		set<point*>::iterator it;
 		for(it = c->begin(); it != c->end(); it++){
 			print_point(*it);
 		}
 	}
+	printf("cluster size: %d\n", clusters.size());
+	printf("noise: %d\n", noiseCluster->size());
+	printf("total: %d\n", clusters.size());
 }
