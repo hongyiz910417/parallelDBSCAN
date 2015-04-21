@@ -1,3 +1,4 @@
+#include <__debug>
 #include "dbscaner.h"
 
 int main(int argc, char **argv){

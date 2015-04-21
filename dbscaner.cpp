@@ -4,6 +4,7 @@
 #include <set>
 #include <vector>
 #include <math.h>
+#include <__debug>
 #include "dbscaner.h"
 
 #define ALLOC_NUM 1000
@@ -39,7 +40,6 @@ static set<point*>* noiseCluster = new set<point*>;
 
 static point* points;
 static int p_count;
-
 void get_point(char* line, point* pnt){
 	//get x
 	pnt->x = atof(line);
