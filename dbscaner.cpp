@@ -4,6 +4,7 @@
 #include <set>
 #include <vector>
 #include <math.h>
+#include <time.h>
 #include <omp.h>
 #include "dbscaner.h"
 
@@ -306,6 +307,7 @@ void merge(int partition_id){
 
 void cluster(char* outpath, double eps, int minPts, double diff){
 	//for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
+	double start = omp_get_wtime();
 	int i;
 	#pragma omp parallel for num_threads(THREAD_NUM) private(i)
 	for(i = 0; i < 16; i++){	
@@ -313,14 +315,21 @@ void cluster(char* outpath, double eps, int minPts, double diff){
 		cluster_partition(i, eps, minPts, diff);
 	}
 
-	for(i = 0; i < P_WIDTH * P_HEIGHT; i++){
-		printf("%d part: %d\n", partitions[i]->size());
-	}
+	double stop1 = omp_get_wtime();
+
+	printf("parallel clustering time: %f\n", stop1 - start);
+
+	// for(i = 0; i < P_WIDTH * P_HEIGHT; i++){
+	// 	printf("%d part: %d\n", partitions[i]->size());
+	// }
 
 	//#pragma omp parallel num_threads(THREAD_NUM){
 	for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
 		merge(i);
 	}
+
+	double stop2 = omp_get_wtime();
+	printf("merging time: %f\n", stop2 - stop1);
 	for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
 		set<set<point*>*>* s = p_clusters[i];
 		set<set<point*>*>::iterator it;
