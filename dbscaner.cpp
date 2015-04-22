@@ -4,11 +4,12 @@
 #include <set>
 #include <vector>
 #include <math.h>
+#include <omp.h>
 #include "dbscaner.h"
 
-#define ALLOC_NUM 1000
 #define P_WIDTH 4
 #define P_HEIGHT 4
+#define THREAD_NUM 16
 
 using namespace std;
 
@@ -81,13 +82,13 @@ void check_zero(vector<point*>* v){
 
 int get_p_x(double x){
 	int keyx;
-	if (x < 9.155) {
+	if (x < 30.519882857142857) {
 		keyx = 0;
 	} 
-	else if (x < 9.76) {
+	else if (x < 30.565401904761902) {
 		keyx = 1;
 	} 
-	else if (x < 10.097) {
+	else if (x < 30.612134793650792) {
 		keyx = 2;
 	} 
 	else {
@@ -98,13 +99,13 @@ int get_p_x(double x){
 
 int get_p_y(double y){
 	int keyy;
-	if (y < 56.945) {
+	if (y < 114.24973692307692) {
 		keyy = 0;
 	} 
-	else if (y < 57.181) {
+	else if (y < 114.32396532051283) {
 		keyy = 1;
 	} 
-	else if (y < 57.396) {
+	else if (y < 114.37465788461539) {
 		keyy = 2;
 	} 
 	else {
@@ -125,7 +126,7 @@ void get_point(char* line, point* pnt){
 	//get x
 	pnt->x = atof(line);
 	//get start point of y
-	while(*line != ' ')
+	while(*line != ',')
 		line++;
 	line++;
 	//get y
@@ -137,15 +138,7 @@ void get_point(char* line, point* pnt){
 	pnt->belongs_to = NULL;
 	pnt->p_x = get_p_x(pnt->x);
 	pnt->p_y = get_p_y(pnt->y);
-	// if(partitions[pnt->p_y * P_WIDTH + pnt->p_x]->size() == 1)
-	// 	print_point((*(partitions[pnt->p_y * P_WIDTH + pnt->p_x]))[0]);
 	partitions[pnt->p_y * P_WIDTH + pnt->p_x]->push_back(pnt);
-	// 	point ppp;
-	// ppp.x = 30.579330;
-	// ppp.y = 114.270950;
-	// if(isEqual(pnt, &ppp, 0.0000001))
-	// 	printf("got it\n");
-	//check_zero(partitions[pnt->p_y * P_WIDTH + pnt->p_x]);
 }
 
 void load_data(char* path){
@@ -168,8 +161,12 @@ void load_data(char* path){
 	//points = (point*)malloc(ALLOC_NUM * sizeof(point));
 	p_count = 0;
 	while (fgets (line_buf, 256, fp)) {
+		char* cp = line_buf;
+		while(*cp != ',')
+			cp++;
+		cp++;
 		point* pnt = (point*)malloc(sizeof(point));
-    	get_point(line_buf, pnt);
+    	get_point(cp, pnt);
     	p_count++;
     	points.push_back(pnt);
     	// space in points is used up, need to expand it
@@ -226,7 +223,7 @@ void expandCluster(int partition_id, point* pnt, set<point*>* neighborPts, set<p
 		int type_flag = 2;
 		point* p = (*v)[i];
 		if(p->p_y * P_WIDTH + p->p_x != partition_id){
-			printf("%d partition_id, %d actual\n", partition_id, p->p_y * P_WIDTH + p->p_x);
+			//printf("%d partition_id, %d actual\n", partition_id, p->p_y * P_WIDTH + p->p_x);
 			p_records[partition_id]->push_back(make_pair(pnt, p));
 			continue;
 		}
@@ -250,24 +247,9 @@ void expandCluster(int partition_id, point* pnt, set<point*>* neighborPts, set<p
 
 void cluster_partition(int partition_id, double eps, int minPts, double diff){
 	int i;
+	printf("into partition: %d\n", partition_id);
 	vector<point*>* partition = partitions[partition_id];
-	// 	point ppp;
-	// ppp.x = 30.579330;
-	// ppp.y = 114.270950;
-	//printf("partition %d: %d\n", partition_id, partition->size());
-	// for(i = 0; i < partition->size(); i++){
-	// 	if(isEqual((*partition)[i], &ppp, diff))
-	// 		printf("got it %d\n", i);
-	// }
-	// print_vec(partitions[15]);
-	// printf("%d\n", partition_id);
-	// check_zero(partitions[15]);
 	for(i = 0; i < partition->size(); i++){
-		// if(i == 996){
-		// 	print_point((*partition)[i]);
-		// }
-		// if(isEqual((*partition)[i], &ppp, diff))
-		// 	printf("got it\n");
 		if(((*partition)[i])->visited)
 			continue;
 		((*partition)[i])->visited = 1;
@@ -277,7 +259,7 @@ void cluster_partition(int partition_id, double eps, int minPts, double diff){
 			noiseCluster->insert((*partition)[i]);
 		}
 		else{
-			printf("into here\n");
+			//printf("into here\n");
 			set<point*>* c = new set<point*>;
 			expandCluster(partition_id, (*partition)[i], neighborPts, c, eps
 							, minPts, diff);
@@ -310,10 +292,10 @@ void merge(int partition_id){
 	vector<pair<point*, point*> >* pairs = p_records[partition_id];
 	int i = 0;
 	for(i = 0; i < pairs->size(); i++){
-		if((*pairs)[i].second->isClustered){
+		if((*pairs)[i].second->type == 1){
 			merge_clusters((*pairs)[i].first, (*pairs)[i].second);
 		}
-		else{
+		else if((*pairs)[i].second->isClustered == 0){
 			(*pairs)[i].first->belongs_to->insert((*pairs)[i].second);
 			(*pairs)[i].second->isClustered = 1;
 			(*pairs)[i].second->belongs_to = (*pairs)[i].first->belongs_to;
@@ -323,13 +305,19 @@ void merge(int partition_id){
 }
 
 void cluster(char* outpath, double eps, int minPts, double diff){
+	//for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
 	int i;
-	for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
+	#pragma omp parallel for num_threads(THREAD_NUM) private(i)
+	for(i = 0; i < 16; i++){	
+		printf("thread: %d\n", omp_get_thread_num());
 		cluster_partition(i, eps, minPts, diff);
-		// printf("%d size: %d\n", i, p_clusters[i]->size());
-		// printf("%d records: %d\n", i, p_records[i]->size());
 	}
-	//cluster_partition(15, eps, minPts, diff);
+
+	for(i = 0; i < P_WIDTH * P_HEIGHT; i++){
+		printf("%d part: %d\n", partitions[i]->size());
+	}
+
+	//#pragma omp parallel num_threads(THREAD_NUM){
 	for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
 		merge(i);
 	}
@@ -358,8 +346,4 @@ void print_clusters(){
 	printf("cluster size: %d\n", clusters.size());
 	printf("noise: %d\n", noiseCluster->size());
 	printf("total: %d\n", clusters.size());
-	// for(i = 0; i < p_count; i++){
-	// 	if(points[i]->visited == 0)
-	// 		printf("wrong p: %f, %f\n", points[i]->x, points[i]->y);
-	// }
 }
