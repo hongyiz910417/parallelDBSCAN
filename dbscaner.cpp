@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <set>
+#include <unordered_set>
 #include <vector>
 #include <math.h>
 #include <time.h>
@@ -10,7 +10,7 @@
 
 #define P_WIDTH 4
 #define P_HEIGHT 4
-#define THREAD_NUM 16
+#define THREAD_NUM 2
 
 using namespace std;
 
@@ -23,14 +23,14 @@ typedef struct point_struct
 	int type; //0: null, 1: core, 2: border
 	int p_x;
 	int p_y;
-	set<point_struct*>* belongs_to;
+	unordered_set<point_struct*>* belongs_to;
 } point;
 
-static set<set<point*>*> clusters;
-static set<point*>* noiseCluster = new set<point*>;
+static unordered_set<unordered_set<point*>*> clusters;
+static unordered_set<point*>* noiseCluster = new unordered_set<point*>;
 static vector<vector<point*>* > partitions;
 static vector<vector<pair<point*, point*> >*> p_records;
-static vector<set<set<point*>*>*> p_clusters;
+static vector<unordered_set<unordered_set<point*>*>*> p_clusters;
 
 static vector<point*> points;
 static int p_count;
@@ -47,8 +47,8 @@ void print_data(){
 	}
 }
 
-void print_set(set<point*>* s){
-	set<point*>::iterator it;
+void print_set(unordered_set<point*>* s){
+	unordered_set<point*>::iterator it;
 	for(it = s->begin(); it != s->end(); it++){
 		print_point(*it);
 	}
@@ -83,35 +83,37 @@ void check_zero(vector<point*>* v){
 
 int get_p_x(double x){
 	int keyx;
-	if (x < 30.519882857142857) {
+	if (x < 9.155) {
 		keyx = 0;
 	} 
-	else if (x < 30.565401904761902) {
+	else if (x < 9.76) {
 		keyx = 1;
 	} 
-	else if (x < 30.612134793650792) {
+	else if (x < 10.097) {
 		keyx = 2;
 	} 
 	else {
 		keyx = 3;
 	}
+	//keyx = 3;
 	return keyx;
 }
 
 int get_p_y(double y){
 	int keyy;
-	if (y < 114.24973692307692) {
+	if (y < 56.945) {
 		keyy = 0;
 	} 
-	else if (y < 114.32396532051283) {
+	else if (y < 57.181) {
 		keyy = 1;
 	} 
-	else if (y < 114.37465788461539) {
+	else if (y < 57.396) {
 		keyy = 2;
 	} 
 	else {
 		keyy = 3;
 	}
+	//keyy = 3;
 	return keyy;
 }
 
@@ -155,7 +157,7 @@ void load_data(char* path){
 	for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
 		partitions.push_back(new vector<point*>);
 		p_records.push_back(new vector<pair<point*, point*> >);
-		p_clusters.push_back(new set<set<point*>*>);
+		p_clusters.push_back(new unordered_set<unordered_set<point*>*>);
 	}
 	//printf("len: %d\n", partitions[15]->size());
 
@@ -189,8 +191,8 @@ int isNeighbor(point* pnt1, point* pnt2, double eps, double diff){
 	return distance < eps * eps || pnt1 == pnt2;
 }
 
-set<point*>* regionQuery(point* pnt, double eps, double diff){
-	set<point*>* v = new set<point*>;
+unordered_set<point*>* regionQuery(point* pnt, double eps, double diff){
+	unordered_set<point*>* v = new unordered_set<point*>;
 	int i;
 	for(i = 0; i < p_count; i++){
 		if(isNeighbor(pnt, points[i], eps, diff)){
@@ -200,8 +202,8 @@ set<point*>* regionQuery(point* pnt, double eps, double diff){
 	return v;
 }
 
-void join(set<point*>* s1, set<point*>* s2, vector<point*>* v2){
-	set<point*>::iterator it;
+void join(unordered_set<point*>* s1, unordered_set<point*>* s2, vector<point*>* v2){
+	unordered_set<point*>::iterator it;
 	for(it = s1->begin(); it != s1->end(); it++){
 		if(s2->find(*it) == s2->end()){
 			s2->insert(*it);
@@ -210,7 +212,7 @@ void join(set<point*>* s1, set<point*>* s2, vector<point*>* v2){
 	}
 }
 
-void expandCluster(int partition_id, point* pnt, set<point*>* neighborPts, set<point*>* c
+void expandCluster(int partition_id, point* pnt, unordered_set<point*>* neighborPts, unordered_set<point*>* c
 	, double eps, int minPts, double diff){
 	//check_zero(partitions[partition_id]);
 	c->insert(pnt);
@@ -224,13 +226,13 @@ void expandCluster(int partition_id, point* pnt, set<point*>* neighborPts, set<p
 		int type_flag = 2;
 		point* p = (*v)[i];
 		if(p->p_y * P_WIDTH + p->p_x != partition_id){
-			//printf("%d partition_id, %d actual\n", partition_id, p->p_y * P_WIDTH + p->p_x);
+			printf("%d partition_id, %d actual\n", partition_id, p->p_y * P_WIDTH + p->p_x);
 			p_records[partition_id]->push_back(make_pair(pnt, p));
 			continue;
 		}
 		if(!p->visited){
 			p->visited = 1;
-			set<point*>* newNeighbors = regionQuery(p, eps, diff);
+			unordered_set<point*>* newNeighbors = regionQuery(p, eps, diff);
 			if(newNeighbors->size() >= minPts){
 				join(newNeighbors, neighborPts, v);
 				type_flag = 1;
@@ -254,14 +256,14 @@ void cluster_partition(int partition_id, double eps, int minPts, double diff){
 		if(((*partition)[i])->visited)
 			continue;
 		((*partition)[i])->visited = 1;
-		set<point*>* neighborPts = regionQuery((*partition)[i], eps, diff);
+		unordered_set<point*>* neighborPts = regionQuery((*partition)[i], eps, diff);
 		//mark as noise
 		if(neighborPts->size() < minPts){
 			noiseCluster->insert((*partition)[i]);
 		}
 		else{
 			//printf("into here\n");
-			set<point*>* c = new set<point*>;
+			unordered_set<point*>* c = new unordered_set<point*>;
 			expandCluster(partition_id, (*partition)[i], neighborPts, c, eps
 							, minPts, diff);
 			p_clusters[partition_id]->insert(c);
@@ -274,11 +276,11 @@ void cluster_partition(int partition_id, double eps, int minPts, double diff){
 }
 
 void merge_clusters(point* p1, point* p2){
-	set<point*>* c1 = p1->belongs_to;
-	set<point*>* c2 = p2->belongs_to;
+	unordered_set<point*>* c1 = p1->belongs_to;
+	unordered_set<point*>* c2 = p2->belongs_to;
 	if(c1 == c2)
 		return;
-	set<point*>::iterator it;
+	unordered_set<point*>::iterator it;
 	for(it = c2->begin(); it != c2->end(); it++){
 		c1->insert(*it);
 		(*it)->belongs_to = c1;
@@ -307,21 +309,23 @@ void merge(int partition_id){
 
 void cluster(char* outpath, double eps, int minPts, double diff){
 	//for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
-	double start = omp_get_wtime();
 	int i;
+	for(i = 0; i < P_WIDTH * P_HEIGHT; i++){
+		printf("%d part: %d\n", i, partitions[i]->size());
+		//printf("%d rec: %d\n", i, p_records[i]->size());
+	}
+	double start = omp_get_wtime();
 	#pragma omp parallel for num_threads(THREAD_NUM) private(i)
 	for(i = 0; i < 16; i++){	
 		printf("thread: %d\n", omp_get_thread_num());
 		cluster_partition(i, eps, minPts, diff);
 	}
 
+
+
 	double stop1 = omp_get_wtime();
 
 	printf("parallel clustering time: %f\n", stop1 - start);
-
-	// for(i = 0; i < P_WIDTH * P_HEIGHT; i++){
-	// 	printf("%d part: %d\n", partitions[i]->size());
-	// }
 
 	//#pragma omp parallel num_threads(THREAD_NUM){
 	for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
@@ -331,8 +335,8 @@ void cluster(char* outpath, double eps, int minPts, double diff){
 	double stop2 = omp_get_wtime();
 	printf("merging time: %f\n", stop2 - stop1);
 	for(i = 0; i < P_HEIGHT * P_WIDTH; i++){
-		set<set<point*>*>* s = p_clusters[i];
-		set<set<point*>*>::iterator it;
+		unordered_set<unordered_set<point*>*>* s = p_clusters[i];
+		unordered_set<unordered_set<point*>*>::iterator it;
 		for(it = s->begin(); it != s->end(); it++){
 			clusters.insert(*it);
 		}
@@ -341,13 +345,13 @@ void cluster(char* outpath, double eps, int minPts, double diff){
 
 void print_clusters(){
 	int i = 0;
-	set<set<point*>*>::iterator iter;
+	unordered_set<unordered_set<point*>*>::iterator iter;
 	for(iter = clusters.begin(); iter != clusters.end(); iter++){
 		printf("i: %d\n", i);
 		i++;
-		set<point*>* c = *iter;
+		unordered_set<point*>* c = *iter;
 		printf("cluster: %d\n", c->size());
-		set<point*>::iterator it;
+		unordered_set<point*>::iterator it;
 		for(it = c->begin(); it != c->end(); it++){
 			print_point(*it);
 		}

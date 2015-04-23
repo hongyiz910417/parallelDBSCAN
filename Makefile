@@ -5,7 +5,7 @@ OMPFLAGS    = -fopenmp -lpthread
 
 #H_FILES     = dbscaner.h
 %.o: %.cpp
-	$(CC) -c -o $@ $< $(CFLAGS) $(OMPFLAGS)
+	$(CC) -c -o $@ $< $(CFLAGS) $(OMPFLAGS) -std=c++11
 scaner: main.o dbscaner.o
 	$(CC) $(CFLAGS) $(OMPFLAGS) -o scaner main.o dbscaner.o -I.
 #g++ -c main.cpp -o main.o -fopenmp -O3
